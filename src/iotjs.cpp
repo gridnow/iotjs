@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2015-2016 Samsung Electronics Co., Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,26 +33,38 @@ namespace iotjs {
 Environment* Environment::_env = NULL;
 
 
-static bool InitJerry() {
-
+/**
+ * Initialize JerryScript.
+ */
+static bool InitJerry(Environment* env) {
+  // Set jerry run flags.
   uint32_t jerry_flag = JERRY_FLAG_ABORT_ON_FAIL;
 
-#ifdef ENABLE_JERRY_MEM_STATS
-  jerry_flag |= JERRY_FLAG_MEM_STATS;
-  jerry_flag |= JERRY_FLAG_SHOW_OPCODES;
-#endif
+  if (env->config()->memstat) {
+    jerry_flag |= JERRY_FLAG_MEM_STATS;
+  }
 
-  jerry_init(jerry_flag);
+  if (env->config()->show_opcode) {
+    jerry_flag |= JERRY_FLAG_SHOW_OPCODES;
+  }
 
+  // Initialize jerry.
+  jerry_init((jerry_flag_t) jerry_flag);
+
+  // Set magic strings.
   InitJerryMagicStringEx();
 
-  if (!jerry_parse((jerry_api_char_t*)"", 0)) {
+  // Do parse and run to generate initial javascript environment.
+  jerry_api_object_t *err_obj_p = NULL;
+  if (!jerry_parse((jerry_api_char_t*)"", 0, &err_obj_p)) {
     DLOG("jerry_parse() failed");
+    jerry_api_release_object (err_obj_p);
     return false;
   }
 
-  if (jerry_run() != JERRY_COMPLETION_CODE_OK) {
+  if (jerry_run(&err_obj_p) != JERRY_COMPLETION_CODE_OK) {
     DLOG("jerry_run() failed");
+    jerry_api_release_object (err_obj_p);
     return false;
   }
 
@@ -79,7 +91,7 @@ static void CleanupModules() {
 static bool RunIoTjs(JObject* process) {
   // Evaluating 'iotjs.js' returns a function.
 #ifndef ENABLE_SNAPSHOT
-  JResult jmain = JObject::Eval(String(iotjs_s), false, false);
+  JResult jmain = JObject::Eval(String(iotjs_s, iotjs_l), false, false);
 #else
   JResult jmain = JObject::ExecSnapshot(iotjs_s, iotjs_l);
 #endif
@@ -152,19 +164,26 @@ static void UvWalkToCloseCallback(uv_handle_t* handle, void* arg) {
 
 
 int Start(int argc, char** argv) {
+  // Initialize debug print.
   InitDebugSettings();
-
-  // Initalize JerryScript engine.
-  if (!InitJerry()) {
-    DLOG("InitJerry failed");
-    return 1;
-  }
 
   // Create environtment.
   Environment* env = Environment::GetEnv();
 
-  // Init environment with argument and uv loop.
-  env->Init(argc, argv, uv_default_loop());
+  // Parse command line arguemnts.
+  if (!env->ParseCommandLineArgument(argc, argv)) {
+    DLOG("ParseCommandLineArgument failed");
+    return 1;
+  }
+
+  // Set event loop.
+  env->set_loop(uv_default_loop());
+
+  // Initalize JerryScript engine.
+  if (!InitJerry(env)) {
+    DLOG("InitJerry failed");
+    return 1;
+  }
 
   // Start IoT.js
   if (!StartIoTjs(env)) {
@@ -180,12 +199,13 @@ int Start(int argc, char** argv) {
   int res = uv_loop_close(env->loop());
   IOTJS_ASSERT(res == 0);
 
-  // Release environment.
-  Environment::Release();
-
   // Release JerryScript engine.
   ReleaseJerry();
 
+  // Release environment.
+  Environment::Release();
+
+  // Release debug print setting.
   ReleaseDebugSettings();
 
   return 0;
@@ -196,10 +216,5 @@ int Start(int argc, char** argv) {
 
 
 extern "C" int iotjs_entry(int argc, char** argv) {
-  if (argc < 2) {
-    fprintf(stderr, "Usage: iotjs <js>\n");
-    return 1;
-  }
-
   return iotjs::Start(argc, argv);
 }

@@ -13,5 +13,8 @@
  * limitations under the License.
  */
 
-exports.i = -100;
+/**
+  @NOTEST
+*/
 
+exports.i = -100;

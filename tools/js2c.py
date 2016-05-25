@@ -67,12 +67,21 @@ LICENSE = '''/* Copyright 2015 Samsung Electronics Co., Ltd.
  */
 '''
 
-HEADER = '''#ifndef IOTJS_JS_H
+HEADER1 = '''#ifndef IOTJS_JS_H
 #define IOTJS_JS_H
 namespace iotjs {
 '''
-FOOTER = '''}
+
+FOOTER1 = '''}
 #endif
+'''
+
+HEADER2 = '''#include <stdio.h>
+#include "iotjs_js.h"
+namespace iotjs {
+'''
+
+FOOTER2 = '''}
 '''
 
 SRC_PATH = '../src/'
@@ -87,17 +96,22 @@ if len(sys.argv) >= 2:
     no_snapshot = True if sys.argv[2] == 'no_snapshot' else False
     DUMPER = sys.argv[3]
 
-fout = open(SRC_PATH + 'iotjs_js.h', 'w')
-
-fout.write(LICENSE);
-fout.write(HEADER);
+fout_h = open(SRC_PATH + 'iotjs_js.h', 'w')
+fout_cpp = open(SRC_PATH + 'iotjs_js.cpp', 'w')
+fout_h.write(LICENSE);
+fout_h.write(HEADER1);
+fout_cpp.write(LICENSE);
+fout_cpp.write(HEADER2);
 
 files = glob.glob(JS_PATH + '*.js')
 for path in files:
     name = extractName(path)
-    fout.write('const char ' + name + '_n [] = "' + name + '";\n')
+    fout_cpp.write('const char ' + name + '_n [] = "' + name + '";\n')
+    fout_h.write('extern const char ' + name + '_n [];\n')
+    fout_h.write('extern const int ' + name + '_l;\n')
     if no_snapshot == True:
-        fout.write('const char ' + name + '_s [] = {\n')
+        fout_h.write('extern const char ' + name + '_s [];\n')
+        fout_cpp.write('const char ' + name + '_s [] = {\n')
         code = open(path, 'r').read() + '\0'
 
         # minimize code when release mode
@@ -109,13 +123,15 @@ for path in files:
             buf = ', '.join(map(lambda ch: str(ord(ch)), line))
             if line[-1] != '\0':
                 buf += ','
-            writeLine(fout, buf, 1)
+            writeLine(fout_cpp, buf, 1)
 
-        writeLine(fout, '};')
-        writeLine(fout, 'const int ' + name + '_l = ' + str(len(code)-1) + ';')
+        writeLine(fout_cpp, '};')
+        writeLine(fout_cpp,
+                  'const int ' + name + '_l = ' + str(len(code)-1) + ';')
 
     else:
-        fout.write('const unsigned char ' + name + '_s [] = {\n')
+        fout_h.write('extern const unsigned char ' + name + '_s [];\n')
+        fout_cpp.write('const unsigned char ' + name + '_s [] = {\n')
 
         fmodule = open(path, 'r')
         module = fmodule.read()
@@ -137,7 +153,7 @@ for path in files:
 
         # FIXME
         ret = subprocess.call([DUMPER,
-                               '--dump-snapshot-for-eval',
+                               '--save-snapshot-for-eval',
                                path + '.snapshot',
                                path + '.wrapped'])
         if ret != 0:
@@ -153,27 +169,35 @@ for path in files:
         for line in regroup(code, 8):
             buf = ', '.join(map(lambda ch: "0x{:02x}".format(ord(ch)), line))
             buf += ','
-            writeLine(fout, buf, 1)
-        writeLine(fout, '};')
-        writeLine(fout, 'const int ' + name + '_l = sizeof (' + name + '_s);')
+            writeLine(fout_cpp, buf, 1)
+        writeLine(fout_cpp, '};')
+        writeLine(fout_cpp,
+                  'const int ' + name + '_l = sizeof (' + name + '_s);')
 
 
 
-NATIVE_STRUCT = '''
+NATIVE_STRUCT1 = '''
 struct native_mod {
 const char* name;
 const void* code;
 const size_t length;
 };
 
-__attribute__ ((used)) static struct native_mod natives[] = {
+extern const struct native_mod natives[];
 '''
 
-fout.write(NATIVE_STRUCT)
+NATIVE_STRUCT2 = '''
+__attribute__ ((used)) const struct native_mod natives[] = {
+'''
+
+fout_h.write(NATIVE_STRUCT1)
+fout_cpp.write(NATIVE_STRUCT2)
 filenames = map(extractName, files)
 for name in filenames:
-    writeLine(fout, '{ ' + name + '_n, ' + name + '_s, ' + name + '_l },', 1)
-writeLine(fout, '{ NULL, NULL, 0 }', 1)
-writeLine(fout, '};')
+    writeLine(fout_cpp,
+              '{ ' + name + '_n, ' + name + '_s, ' + name + '_l },', 1)
+writeLine(fout_cpp, '{ NULL, NULL, 0 }', 1)
+writeLine(fout_cpp, '};')
 
-fout.write(FOOTER)
+fout_h.write(FOOTER1)
+fout_cpp.write(FOOTER2)

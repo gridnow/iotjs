@@ -49,8 +49,44 @@ fs.Stats.prototype.isDirectory = function() {
 };
 
 
+fs.Stats.prototype.isFile = function() {
+  return ((this.mode & constants.S_IFMT) === constants.S_IFREG);
+};
+
+
 fsBuiltin._createStat = function(stat) {
   return new fs.Stats(stat);
+};
+
+
+fs.exists = function(path, callback) {
+  if (!path || !path.length) {
+    process.nextTick(function () {
+      if (callback) callback(false);
+    });
+    return;
+  }
+
+  var cb = function(err, stat) {
+    if (callback) callback(err ? false : true);
+  };
+
+  fsBuiltin.stat(checkArgString(path, 'path'),
+                 checkArgFunction(cb, 'callback'));
+};
+
+
+fs.existsSync = function(path) {
+  if (!path || !path.length) {
+    return false;
+  }
+
+  try {
+    fsBuiltin.stat(checkArgString(path, 'path'));
+    return true;
+  } catch (e) {
+    return false;
+  }
 };
 
 

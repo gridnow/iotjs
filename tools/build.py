@@ -62,7 +62,7 @@ HTTPPARSER_ROOT = join_path([DEPS_ROOT, 'http-parser/'])
 CHECKTEST = join_path([SCRIPT_PATH, 'check_test.py'])
 
 # Default build configuration file path.
-DEFAULT_CONFIG_PATH = join_path([PROJECT_HOME, 'build.default.config'])
+DEFAULT_CONFIG_PATH = join_path([PROJECT_HOME, '.build.default.config'])
 WORKING_CONFIG_PATH = join_path([PROJECT_HOME, 'build.config'])
 
 def mkdir(path):
@@ -179,6 +179,8 @@ def init_option():
 
     parser.add_argument('--external-static-lib', action='append')
 
+    parser.add_argument('--external-shared-lib', action='append')
+
     parser.add_argument('--jerry-cmake-param', action='append')
 
     parser.add_argument('--jerry-compile-flag', action='append')
@@ -186,6 +188,8 @@ def init_option():
     parser.add_argument('--jerry-link-flag', action='append')
 
     parser.add_argument('--jerry-lto', action='store_true')
+
+    parser.add_argument('--jerry-heap-section', action='store')
 
     parser.add_argument('--jerry-heaplimit', type=int)
 
@@ -211,9 +215,6 @@ def init_option():
 
 
 def adjust_option(option):
-    if option.jerry_memstat:
-        option.buildtype = 'debug'
-        option.no_check_test = True
     if option.target_os.lower() == 'nuttx':
         option.buildlib = True;
         if option.nuttx_home == '':
@@ -236,6 +237,8 @@ def adjust_option(option):
         option.external_include_dir = []
     if option.external_static_lib == None:
         option.external_static_lib = []
+    if option.external_shared_lib == None:
+        option.external_shared_lib = []
     if option.jerry_cmake_param == None:
         option.jerry_cmake_param = []
     if option.jerry_compile_flag == None:
@@ -390,9 +393,14 @@ def build_tuv(option):
     cmake_opt.append('-DCMAKE_BUILD_TYPE=' + option.buildtype)
     cmake_opt.append('-DTARGET_PLATFORM=' + target_tuple)
     cmake_opt.append('-DLIBTUV_CUSTOM_LIB_OUT=' + build_home)
+    cmake_opt.append('-DBUILDTESTER=no')
+    cmake_opt.append('-DBUILDAPIEMULTESTER=no')
 
     if option.target_os == 'nuttx':
         cmake_opt.append('-DTARGET_SYSTEMROOT=' + option.nuttx_home);
+
+    if option.target_board:
+        cmake_opt.append('-DTARGET_BOARD=' + option.target_board)
 
     # inflate cmake option.
     inflate_cmake_option(cmake_opt, option)
@@ -494,6 +502,11 @@ def build_libjerry(option):
     if option.jerry_heaplimit:
         cmake_opt.append('-DEXTERNAL_MEM_HEAP_SIZE_KB=' +
                          str(option.jerry_heaplimit))
+
+    # --jerry-heap-section
+    if option.jerry_heap_section:
+        cmake_opt.append('-DJERRY_HEAP_SECTION_ATTR=' +
+                         str(option.jerry_heap_section))
 
     # --jerry-lto
     cmake_opt.append('-DENABLE_LTO=%s' % ('ON' if option.jerry_lto else 'OFF'))
@@ -641,12 +654,16 @@ def build_iotjs(option):
     if option.buildlib:
         cmake_opt.append('-DBUILD_TO_LIB=YES')
 
-    # --jerry-memstat
-    if option.jerry_memstat:
-        option.compile_flag.append('-DENABLE_JERRY_MEM_STATS')
-
     # --cmake-param
     cmake_opt += option.cmake_param
+
+    # --external_static_lib
+    cmake_opt.append('-DEXTERNAL_STATIC_LIB=' +
+                    ' '.join(option.external_static_lib))
+
+    # --external_shared_lib
+    cmake_opt.append('-DEXTERNAL_SHARED_LIB=' +
+                    ' '.join(option.external_shared_lib))
 
     # inflate cmake option
     inflate_cmake_option(cmake_opt, option)

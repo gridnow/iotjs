@@ -1,4 +1,4 @@
-/* Copyright 2015 Samsung Electronics Co., Ltd.
+/* Copyright 2016 Samsung Electronics Co., Ltd.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,39 +13,33 @@
  * limitations under the License.
  */
 
+var fs = require('fs');
+var assert = require('assert');
 
-#if defined(__LINUX__)
+{
+  var filePath = "../resources/tobeornottobe.txt";
 
- #if defined(USING_MRAA)
-
-#include "../iotjs_module_gpio-linux-mraa.inl.h"
-
-
-namespace iotjs {
-
-
-Gpio* Gpio::Create(JObject& jgpio) {
-  return new GpioLinuxMraa(jgpio);
+  var result = fs.existsSync(filePath);
+  assert.equal(result, true);
 }
 
+{
+  var filePath = "../resources/empty.txt";
 
-} // namespace iotjs
-
- #else
-
-#include "../iotjs_module_gpio-linux-general.inl.h"
-
-
-namespace iotjs {
-
-
-Gpio* Gpio::Create(JObject& jgpio) {
-  return new GpioLinuxGeneral(jgpio);
+  var result = fs.existsSync(filePath);
+  assert.equal(result, false);
 }
 
+{
+  var filePath = "";
 
-} // namespace iotjs
+  var result = fs.existsSync(filePath);
+  assert.equal(result, false);
+}
 
- #endif
+{
+  var filePath = " ";
 
-#endif
+  var result = fs.existsSync(filePath);
+  assert.equal(result, false);
+}

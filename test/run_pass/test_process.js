@@ -13,39 +13,16 @@
  * limitations under the License.
  */
 
+var assert = require('assert');
 
-#if defined(__LINUX__)
+var sequence = '';
 
- #if defined(USING_MRAA)
+process.nextTick(function() {
+  sequence += '2'
+});
 
-#include "../iotjs_module_gpio-linux-mraa.inl.h"
+sequence = '1';
 
-
-namespace iotjs {
-
-
-Gpio* Gpio::Create(JObject& jgpio) {
-  return new GpioLinuxMraa(jgpio);
-}
-
-
-} // namespace iotjs
-
- #else
-
-#include "../iotjs_module_gpio-linux-general.inl.h"
-
-
-namespace iotjs {
-
-
-Gpio* Gpio::Create(JObject& jgpio) {
-  return new GpioLinuxGeneral(jgpio);
-}
-
-
-} // namespace iotjs
-
- #endif
-
-#endif
+process.on('exit', function() {
+  assert.equal(sequence, '12');
+});

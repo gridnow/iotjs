@@ -13,39 +13,33 @@
  * limitations under the License.
  */
 
+var net = require('net');
+var assert = require('assert');
 
-#if defined(__LINUX__)
+var timedout = false;
+var connected = false;
 
- #if defined(USING_MRAA)
+// Try connect to host that is not exist (Reserved address of TEST-NET-1)
+var socket1 = net.createConnection(11111, '192.0.2.1');
 
-#include "../iotjs_module_gpio-linux-mraa.inl.h"
+socket1.setTimeout(1000);
 
+socket1.on('timeout', function() {
+  timedout = true;
+  socket1.destroy();
+});
 
-namespace iotjs {
+socket1.on('error', function() {
+  assert.fail();
+});
 
+socket1.on('connect', function() {
+  console.error('connect');
+  connected = true;
+  socket1.destroy();
+});
 
-Gpio* Gpio::Create(JObject& jgpio) {
-  return new GpioLinuxMraa(jgpio);
-}
-
-
-} // namespace iotjs
-
- #else
-
-#include "../iotjs_module_gpio-linux-general.inl.h"
-
-
-namespace iotjs {
-
-
-Gpio* Gpio::Create(JObject& jgpio) {
-  return new GpioLinuxGeneral(jgpio);
-}
-
-
-} // namespace iotjs
-
- #endif
-
-#endif
+process.on('exit', function() {
+  assert(timedout);
+  assert(!connected);
+});
